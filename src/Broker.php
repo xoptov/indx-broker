@@ -8,23 +8,27 @@ use Xoptov\TradingCore\Channel;
 use Xoptov\TradingCore\OrderBook;
 use Xoptov\INDXConnector\Connector;
 use Xoptov\INDXConnector\Credential;
+use Xoptov\TradingCore\Model\Currency;
 
 class Broker
 {
-	/** @var Credential */
-	private $credential;
+    /** @var Credential */
+    private $brokerCredential;
 
 	/** @var Connector */
 	private $connector;
-
-	/** @var OrderBook */
-	private $orderBook;
 
 	/** @var SplDoublyLinkedList */
 	private $currencies;
 
 	/** @var SplDoublyLinkedList */
 	private $currencyPairs;
+
+	/** @var SplDoublyLinkedList */
+	private $observableCurrencies;
+
+	/** @var OrderBook */
+	private $orderBook;
 
 	/** @var SplDoublyLinkedList */
 	private $channels;
@@ -35,29 +39,30 @@ class Broker
 	/**
 	 * Broker constructor.
 	 *
-	 * @param Credential $credential
+     * @param Credential $credential
 	 * @param Connector $connector
 	 * @param OrderBook $orderBook
-	 * @param array $events
 	 */
-	public function __construct(Credential $credential, Connector $connector, OrderBook $orderBook, array $events)
+	public function __construct(Credential $credential, Connector $connector, OrderBook $orderBook)
 	{
-		$this->credential = $credential;
+	    $this->brokerCredential = $credential;
 		$this->connector = $connector;
-		$this->orderBook = $orderBook;
-		$this->currencies = new SplDoublyLinkedList();
-		$this->currencyPairs = new SplDoublyLinkedList();
-		$this->channels = new SplDoublyLinkedList();
+        $this->orderBook = $orderBook;
 
-		$this->setupChannels($events);
+        // Internal properties.
+        $this->currencies = new SplDoublyLinkedList();
+        $this->currencyPairs = new SplDoublyLinkedList();
+        $this->observableCurrencies = new SplDoublyLinkedList();
+		$this->channels = new SplDoublyLinkedList();
 	}
 
 	/**
 	 * Main loop
 	 *
 	 * @param int $tickInterval
+     * @param bool $loop
 	 */
-	public function start($tickInterval = 1000)
+	public function start($tickInterval = 1000, $loop = true)
 	{
 		if ($this->started) {
 			return;
@@ -65,13 +70,10 @@ class Broker
 
 		$this->started = true;
 
-		$this->loadCurrencies();
-		$this->loadCurrencyPairs();
-
-		while (true) {
-			//TODO: implementation main loop workflow.
-			usleep($tickInterval);
-		}
+		do {
+            //TODO: implementation main loop workflow.
+		    usleep($tickInterval);
+        } while ($loop);
 	}
 
 	/**
@@ -81,7 +83,7 @@ class Broker
 	 * @param $event
 	 * @return bool
 	 */
-	public function attach(SplObserver $trader, $event)
+	public function attach(SplObserver $trader, Currency $currency, $event)
 	{
 		/** @var Channel $channel */
 		foreach ($this->channels as $channel) {
@@ -93,25 +95,5 @@ class Broker
 		}
 
 		return false;
-	}
-
-	/**
-	 * @param array $events
-	 */
-	private function setupChannels(array $events)
-	{
-		foreach ($events as $event) {
-			$this->channels->push(new Channel($event));
-		}
-	}
-
-	private function loadCurrencies()
-	{
-
-	}
-
-	private function loadCurrencyPairs()
-	{
-
 	}
 }
