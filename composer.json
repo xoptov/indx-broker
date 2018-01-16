@@ -1,0 +1,32 @@
+{
+    "name": "xoptov/indx-broker",
+    "description": "This is module for build broker on INDX stock-exchange.",
+    "type": "library",
+    "license": "MIT",
+    "authors": [
+        {
+            "name": "Maksim Khortov",
+            "email": "xoptov@mail.ru",
+            "role": "Developer"
+        }
+    ],
+    "autoload": {
+        "psr-4": {
+            "Xoptov\\INDXBroker\\": "src/"
+        }
+    },
+    "autoload-dev": {
+        "psr-4": {
+            "Xoptov\\INDXBroker\\Tests\\": "tests/",
+            "Xoptov\\TradingCore\\": "../../core/src/"
+        }
+    },
+    "minimum-stability": "stable",
+    "require": {
+        "php": "^7.0",
+        "xoptov/indx-connector": "^1.0"
+    },
+    "require-dev": {
+        "phpunit/phpunit": "^6.4"
+    }
+}
