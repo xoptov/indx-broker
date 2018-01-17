@@ -3,12 +3,14 @@
 namespace Xoptov\INDXBroker;
 
 use SplObserver;
+use RuntimeException;
 use SplDoublyLinkedList;
 use Xoptov\TradingCore\Channel;
 use Xoptov\TradingCore\OrderBook;
 use Xoptov\INDXConnector\Connector;
 use Xoptov\INDXConnector\Credential;
 use Xoptov\TradingCore\Model\Currency;
+use Xoptov\TradingCore\Model\CurrencyPair;
 
 class Broker
 {
@@ -19,16 +21,10 @@ class Broker
 	private $connector;
 
 	/** @var SplDoublyLinkedList */
-	private $currencies;
-
-	/** @var SplDoublyLinkedList */
 	private $currencyPairs;
 
 	/** @var SplDoublyLinkedList */
-	private $observableCurrencies;
-
-	/** @var OrderBook */
-	private $orderBook;
+	private $orderBooks;
 
 	/** @var SplDoublyLinkedList */
 	private $channels;
@@ -41,18 +37,15 @@ class Broker
 	 *
      * @param Credential $credential
 	 * @param Connector $connector
-	 * @param OrderBook $orderBook
 	 */
-	public function __construct(Credential $credential, Connector $connector, OrderBook $orderBook)
+	public function __construct(Credential $credential, Connector $connector)
 	{
 	    $this->brokerCredential = $credential;
 		$this->connector = $connector;
-        $this->orderBook = $orderBook;
 
         // Internal properties.
-        $this->currencies = new SplDoublyLinkedList();
         $this->currencyPairs = new SplDoublyLinkedList();
-        $this->observableCurrencies = new SplDoublyLinkedList();
+        $this->orderBooks = new SplDoublyLinkedList();
 		$this->channels = new SplDoublyLinkedList();
 	}
 
@@ -62,13 +55,15 @@ class Broker
 	 * @param int $tickInterval
      * @param bool $loop
 	 */
-	public function start($tickInterval = 1000, $loop = true)
+	public function start($tickInterval = 1000, $loop = false)
 	{
 		if ($this->started) {
 			return;
 		}
 
 		$this->started = true;
+
+		$this->loadCurrencyPairs();
 
 		do {
             //TODO: implementation main loop workflow.
@@ -80,20 +75,93 @@ class Broker
 	 * Attach trader to event channel.
 	 *
 	 * @param SplObserver $trader
-	 * @param $event
-	 * @return bool
+	 * @param CurrencyPair $currencyPair
+	 * @param string $event
 	 */
-	public function attach(SplObserver $trader, Currency $currency, $event)
+	public function attach(SplObserver $trader, CurrencyPair $currencyPair, $event)
+	{
+		$channel = $this->getChannel($currencyPair, $event);
+
+		if (!$channel) {
+			$channel = new Channel($currencyPair, $event);
+			$this->channels->push($channel);
+		}
+
+		$channel->attach($trader);
+
+		$this->observeCurrencyPair($currencyPair);
+	}
+
+	/**
+	 * @param SplObserver $trader
+	 */
+	public function detach(SplObserver $trader, CurrencyPair $currencyPair)
 	{
 		/** @var Channel $channel */
-		foreach ($this->channels as $channel) {
-			if ($channel->getEvent() === $event) {
-				$channel->attach($trader);
+		foreach ($this->channels as $key => $channel) {
+			if ($channel->getCurrencyPairId() === $currencyPair->getId()) {
+				$channel->detach($trader);
 
-				return true;
+				// Remove channel if there is last observer on channel.
+				if (!$channel->getSubscribersCount()) {
+					$this->channels->offsetUnset($key);
+				}
 			}
 		}
 
-		return false;
+		// Checking live currency pair observers.
+		foreach ($this->channels as $channel) {
+			if ($channel->getCurrencyPairId() === $currencyPair->getId()) {
+				return;
+			}
+		}
+
+		/** @var OrderBook $orderBook */
+		foreach ($this->orderBooks as $key => $orderBook) {
+			if ($orderBook->getCurrencyPairId() === $currencyPair->getId()) {
+				$this->orderBooks->offsetUnset($key);
+			}
+		}
+	}
+
+	/**
+	 * @param CurrencyPair $currencyPair
+	 */
+	private function observeCurrencyPair(CurrencyPair $currencyPair)
+	{
+		/** @var OrderBook $orderBook */
+		foreach ($this->orderBooks as $orderBook) {
+			if ($orderBook->getCurrencyPairId() === $currencyPair->getId()) {
+				return;
+			}
+		}
+
+		$orderBook = new OrderBook($currencyPair);
+		$this->orderBooks->push($orderBook);
+	}
+
+	/**
+	 * @param CurrencyPair $currencyPair
+	 * @param string $event
+	 *
+	 * @return Channel|null
+	 */
+	private function getChannel(CurrencyPair $currencyPair, $event)
+	{
+		/** @var Channel $channel */
+		foreach ($this->channels as $channel) {
+			if ($channel->getCurrencyPairId() === $currencyPair->getId() && $channel->getEvent() === $event) {
+				return $channel;
+			}
+		}
+
+		return null;
+	}
+
+	private function loadCurrencyPairs()
+	{
+		$quote = new Currency(null, "WMZ", "WebMoney US Dollar");
+
+		$result = $this->connector->getSymbolList();
 	}
 }
